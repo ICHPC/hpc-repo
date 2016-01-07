@@ -1,0 +1,40 @@
+CREATE SEQUENCE user_seq;
+CREATE SEQUENCE doi_seq;
+CREATE SEQUENCE file_seq;
+
+CREATE TABLE account (
+  user_id       BIGINT DEFAULT nextval('user_seq' ) NOT NULL PRIMARY KEY,
+  username      VARCHAR(32) NOT NULL UNIQUE,
+	name          VARCHAR(80) DEFAULT NULL,
+	orcid         VARCHAR(20) DEFAULT NULL
+);
+
+CREATE TABLE doi (
+  doi           BIGINT DEFAULT nextval('doi_seq') NOT NULL PRIMARY KEY,
+  creator       BIGINT  NOT NULL,
+  title         VARCHAR(100) NOT NULL,
+  description   VARCHAR(4096) NOT NULL,
+	collection    BOOLEAN DEFAULT FALSE,
+  urlmapping    VARCHAR(1024) DEFAULT NULL,
+  creation_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+	FOREIGN KEY(creator) REFERENCES account(user_id) ON DELETE NO ACTION ON UPDATE CASCADE
+);
+
+CREATE TABLE file (
+	file_seq     BIGINT  NOT NULL PRIMARY KEY DEFAULT nextval('file_seq'),
+  doi          BIGINT  NOT NULL,
+  seq          INTEGER NOT NULL,
+  filename     VARCHAR(64) NOT NULL,
+	object       VARCHAR(1024) NOT NULL,
+  mimetype     VARCHAR(64) NOT NULL,
+  description  VARCHAR(256) NOT NULL,
+  size         BIGINT NOT NULL,
+  FOREIGN KEY(doi) REFERENCES doi(doi) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE membership (
+ parent BIGINT NOT NULL,
+ child  BIGINT NOT NULL,
+ FOREIGN KEY(parent) REFERENCES doi(doi) ON UPDATE CASCADE ON DELETE CASCADE,
+ FOREIGN KEY(child)  REFERENCES doi(doi) ON UPDATE CASCADE ON DELETE CASCADE
+);
