@@ -1,3 +1,5 @@
+configuration.ini
+
 # Object files
 *.o
 *.ko

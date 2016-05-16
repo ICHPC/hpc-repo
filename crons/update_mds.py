@@ -9,6 +9,54 @@ import base64
 import sys
 import os
 
+
+def update_files( con, doi, full_doi, doiauth, files ):
+			headers={
+				'Content-Type' : "application/xml;charset=UTF-8",
+				"Authorization" : "Basic " +  doiauth 
+			}
+			x=0
+			for f in files:
+				sanitisefn = re.sub( "[ ><,+!'()&%$/;:]", "_", f['filename'] )
+				key = f['mimetype'] + "+" + sanitisefn
+				key = key.lower()
+				value = "https://data.hpc.imperial.ac.uk/resolve/?doi=" + str(doi) + "&file=" + str(x)
+				md = key + "=" + value
+				x=x+1
+				r = requests.post( "https://mds.datacite.org/media/" + full_doi, headers= headers, data = md )
+				
+				print(" - POST MEDIA"  )
+				if(  r.status_code != requests.codes.ok ):
+					print( "ERROR: Status code:" + str( r.status_code) )
+					print( "REQUEST  : " + md )
+					print( "RESPONSE : " + r.content.decode("ascii"))
+					return False
+
+			return True
+
+def update_metadata( con, doi, full_doi, doiauth, md ):
+			headers={
+				'Content-Type' : "application/xml;charset=UTF-8",
+				"Authorization" : "Basic " +  doiauth 
+			}
+		#	print(headers)
+			r = requests.post( "https://mds.datacite.org/metadata", headers= headers, data = md )
+
+			print(" - POST METADATA")
+
+#			r2 = requests.get( "https://mds.datacite.org/metadata/" + full_doi, headers=headers );
+#			print(r2.content.decode("ascii"))
+			if(  r.status_code > 201 ):
+				print("ERROR: Status code:" + str( r.status_code) )
+				print( "RESPONSE\n" + r.content.decode("ascii"))
+				return False
+			else:
+				return True
+
+			
+#		sys.exit(0)
+
+
 def get_heirarchy( con, doi ):
 	cur = con.cursor( cursor_factory = RealDictCursor )
 	cur.execute( "SELECT child FROM membership WHERE parent=%s", [doi]  )
@@ -79,9 +127,15 @@ def create_metadata( doi_prefix,record, collabs, files, metadata , heir, assoc )
 	SubElement( creator, "affiliation" ).text = "Imperial College London"
 
 	contributors = SubElement( resource, "contributors" )
+	contributor = SubElement( contributors, "contributor" )
+	contributor.set( "contributorType", "HostingInstitution" )
+	SubElement( contributor, "contributorName" ).text = "Imperial College High Performance Computing Service"
+	
 	for rec in collabs:
 		contributor = SubElement( contributors, "contributor" )
-		SubElement( contributor, "creatorName" ).text = rec['name']
+		contributor.set( "contributorType", "Researcher" )
+		SubElement( contributor, "contributorName" ).text = rec['name']
+#	SubElement( contributor, "affiliation" ).text = "Imperial College London"
 		ni = SubElement( contributor , "nameIdentifier" )
 		ni.set( "schemeURI", "http://orcid.org" )
 		ni.set( "nameIdentifierScheme", "ORCID" )
@@ -94,7 +148,7 @@ def create_metadata( doi_prefix,record, collabs, files, metadata , heir, assoc )
 	description.set( "descriptionType", "Other" )
 
 	titles = SubElement( resource, "titles" )
-	SubElement( titles, "title" ).text = record['title'] 
+	SubElement( titles, "title" ).text = record['title']
 	SubElement( resource, "publisher" ).text="Imperial College London" 
 	SubElement( resource, "publicationYear").text = str( record['creation_date'].timetuple().tm_year )
 	dds= SubElement( resource, "dates" )
@@ -115,7 +169,7 @@ def create_metadata( doi_prefix,record, collabs, files, metadata , heir, assoc )
 		related.set( "relatedIdentifierType", "URL" )
 		related.set( "relationType", "HasPart" )
 		related.set( "relatedMetadataScheme", "Filename" )
-		related.set( "schemeURI", "mime+filename://" + f['mimetype'] + "/" + f['filename'] )
+		related.set( "schemeURI", "mime+filename://" + f['mimetype'] + "+" + f['filename'] )
 		related.text="https://data.hpc.imperial.ac.uk/resolve/?doi=" + str(record['doi']) + "&file=" + str(f['seq'])
 
 	subjects = SubElement( resource, "subjects" )
@@ -153,8 +207,8 @@ def create_metadata( doi_prefix,record, collabs, files, metadata , heir, assoc )
 
 	rightslist = SubElement( resource, "rightsList" )
 	rights     = SubElement( rightslist, "rights" )
-	rights.set("rightsURI", "http://creativecommons.org/license/by/3.0/")
-	rights.text="Creative Commons Attribution (CC-BY-3.0)"
+	rights.set("rightsURI", "https://creativecommons.org/publicdomain/zero/1.0/");
+	rights.text="Creative Commons Public Domain Dedication (CC0 1.0)"
 
 	resourcetype = SubElement( resource, "resourceType" )
 
@@ -165,10 +219,13 @@ def create_metadata( doi_prefix,record, collabs, files, metadata , heir, assoc )
 
 
 	return tostring( resource, pretty_print=True ).decode("utf-8")
+
+
+
+if __name__ == "__main__":
 	
-try:
 	cp = configparser.ConfigParser( interpolation=None )
-	cp.read('../configuration.ini' )
+	cp.read('/var/www/data.hpc.imperial.ac.uk/repo/configuration.ini' )
 
 
 	doi_prefix = re.sub( '"', '', cp.get( "datacite", "dc_prefix")) 
@@ -182,9 +239,10 @@ try:
 	con = connect("dbname='%s' user='%s' host='%s' password='%s'" % ( db_name, db_user, db_host, db_password) )
 	cur = con.cursor( cursor_factory = RealDictCursor )
 	cur.execute("SELECT * FROM doi A LEFT JOIN account B ON A.creator = B.user_id WHERE A.embargoed = FALSE AND A.updated = TRUE ORDER BY doi ASC")
+
 	row=cur.fetchall()
 	for a in row:
-		try:
+##		try:
 			doi=int(a['doi'])
 			collabs = get_collaborators( con, doi ) 
 			files   = get_files( con, doi )
@@ -195,33 +253,29 @@ try:
 #		print(files)
 #		print(metadata)
 
-			print("Updating metadata for DOI " + str(a['doi']) )
+			doiauth = base64.b64encode( (doi_user + ":" + doi_pass).encode("ascii") )
+			doiauth = doiauth.decode("ascii")
+			full_doi = doi_prefix + str(a['doi'])
 
-			md = create_metadata("10.14469/hpc/", a, collabs, files, metadata, heirarchy, assoc )
-#		print(md)
-	
-			doiauth = doi_user + ":" + doi_pass
-			headers={
-				'Content-Type' : "application/xml;charset=UTF-8",
-				"Authorization" : "Basic " +  doiauth 
-			}
-			r = requests.post( "https://mds.datacite.org/metadata", headers= headers, data = md )
-#		print(md)
-			if(  r.status_code != requests.codes.ok ):
-				print("ERROR: Status code:" + str( r.status_code) )
-			else:
-		#	print(r.content)
-#		sys.exit(0)
+			print("=== Updating metadata for DOI " + full_doi )
+
+			md = create_metadata( doi_prefix , a, collabs, files, metadata, heirarchy, assoc )
+
+			print(md)
+
+			ret1 = update_files   ( con, doi, full_doi, doiauth, files )
+			ret2 = update_metadata( con, doi, full_doi, doiauth, md )
+
+			if( ret1 and ret2 ):
+				print(" - MARKING COMPLETE" )
 				cur = con.cursor( cursor_factory = RealDictCursor )
 				cur.execute("UPDATE doi SET updated = FALSE WHERE doi=%s", [ doi ] )
 				cur.close()
+				con.commit()
 
-		except:
-			print("ERROR updating MD")
-			pass
 
+#		except:
+#			raise
 	
-except:
-	raise
-
+	cur.close()
 

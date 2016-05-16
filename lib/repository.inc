@@ -52,15 +52,38 @@ $smarty->force_compile = true;
 require_once( 'lib/db-functions.inc' );
 require_once( 'lib/user-functions.inc' );
 
+#print_r( $_SERVER );
+#print_r( $_REQUEST );
 
 if(array_key_exists( 'PHP_AUTH_USER', $_SERVER ) ) {
 	$username= $_SERVER['PHP_AUTH_USER'];
 
 	$id = get_user_id( $username );
+
+	if( is_service_account($id) ) {
+		if( array_key_exists ('authtoken', $_REQUEST) ) {
+			$authtoken= $_REQUEST['authtoken'];
+			$username = get_username_by_authtoken( $authtoken );
+
+			if( !isset($username) ) { die("Invalid authorisation token"); }
+
+			$id = get_user_id( $username );
+			$_SERVER['PHP_AUTH_USER'] = $username;
+			#print ("ID [$id]" );
+			#print("ASSUMING USERID [$username]");
+		}
+		else {
+			die("Service accounts need to supply an authorisation token");
+		}
+	}
+
 	if( $id ) {
     $smarty->assign('gecos', get_gecos_by_id( $id )); 
     $smarty->assign('orcid', get_orcid_by_id( $id )); 
 	}
+}
+else {
+#	print("<-- NOT AUTHORIZED -->" );
 }
     $smarty->assign('version', $REPO_options[ 'version' ]);
     $smarty->assign( 'menulinks', array( 

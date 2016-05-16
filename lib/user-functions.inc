@@ -1,5 +1,16 @@
 <?php
 
+function is_service_account( $id ) {
+	$ret = db_query( "SELECT service FROM account WHERE user_id = ?", array($id));
+	return ($ret['service'] === true );
+
+}
+
+function get_username_by_authtoken( $token ) {
+	$ret = db_query( "SELECT username FROM account WHERE access_token=?", array($token) );
+	return $ret['username'];
+}
+
 function make_embargo_pass() {
   $let='2345679acdefghkmnpqrtuvwxyz';
   $code="";
@@ -197,7 +208,8 @@ function publish( $user_id , $is_collection ) {
 	}
 	# Step 2 - store files
 
- # print_r($_FILES);
+#  print_r($_FILES);
+
 	foreach( $_FILES as $key => $value ) {
 		if ( substr($key, 0, 5) === "file-" ) {
 			$f=$_FILES[$key];
@@ -215,7 +227,10 @@ function publish( $user_id , $is_collection ) {
 						return array( "error" => $ret );
 					}
 				}
-      	}
+				else {
+						return array( "error" => "Upload of file failed -- max file size is 128MB" );
+				}
+       }
 			}
 			else {
 				if( $f['error']===0 ) {
@@ -229,6 +244,9 @@ function publish( $user_id , $is_collection ) {
 						return array( "error" => $ret );
 					}
 				}
+				else {
+						return array( "error" => "Upload of file failed -- max file size is 128MB" );
+				}
 
 			}
 		}
@@ -237,6 +255,8 @@ function publish( $user_id , $is_collection ) {
 
 	# Step 3 - register DOI
 	$doi =  register_doi( $doi_idx, $user_id, $title );
+   $doi["index"] = $doi_idx;
+  $doi['embargo_pass'] = get_embargo_pass($doi_idx);
 	return $doi;
 }
 
@@ -306,8 +326,10 @@ function register_doi( $doi_idx, $uid, $title ) {
 	}
 
 	$rights = $xml->addChild( "rightsList" );
-	$r = $rights->addChild("rights", "Creative Commons Attribution (CC BY 3.0)" );
-	$r->addAttribute( "rightsURI", "http://creativecommons.org/licenses/by/3.0/" );
+	#$r = $rights->addChild("rights", "Creative Commons Attribution (CC BY 3.0)" );
+	#$r->addAttribute( "rightsURI", "http://creativecommons.org/licenses/by/3.0/" );
+	$r = $rights->addChild("rights", "Creative Commons Public Domain (CC0)" );
+	$r->addAttribute( "rightsURI", "https://creativecommons.org/publicdomain/zero/1.0/");
 #print "<!--\n";
 #	print $xml->asXML();
 #print "-->\n";
@@ -747,6 +769,7 @@ function map_url( $user_id ) {
 
 	# Step 3 - register DOI
 	$doi =  register_doi( $doi_idx, $user_id, $title );
+  $doi['index'] = $doi_idx;
 	return $doi;
 }
 
@@ -763,7 +786,7 @@ function edit_entry_get( $id, $doi ){
 	$R=db_query_all( "SELECT * FROM associated WHERE doi=? ORDER BY associated", array($doi) );
 
 	$RR=array();
-	$i=1;
+	$i=0;
 	foreach( $R as $A ) {
 		$RR[] = array(
 		# index, description, doi 	
@@ -830,6 +853,7 @@ function get_selected_users( $doi ) {
 function edit_entry_put( $id, $doi ){
 	global $smarty;
 
+
   $doi=(int)($doi);
 
 	if( doi_owner( $doi ) !== $id ) {
@@ -877,18 +901,72 @@ function edit_entry_put( $id, $doi ){
 				db_query("INSERT INTO associated ( doi, associated, description ) VALUES ( ?, ?, ? )", array( $doi, $associated, $description ) );
 			}
 		}
+#		print($key);
+#		print("\n");
+#		print($value);
+#		print("\n");
+	}
+#	print_r($_REQUEST);
+#	die();
+
+#	print("MARK");
+
+	# Store new files
+#	print_r($_FILES);
+#	print("</br>\n");
+#	print_r($_REQUEST);
+	foreach( $_FILES as $key => $value ) {
+		if ( substr($key, 0, 5) === "file-" ) {
+			$f=$_FILES[$key];
+			$idx=substr($key, 5, strlen($key) );
+      if( is_array( $f['error'] ) ) { # New file[]  upload method
+ 	     for( $subset = 0 ; $subset < count($f['error']); $subset++ ) {
+				if( $f['error'][$subset]===0 ) {
+					$size = $f['size'][$subset];
+					$name = $f['name'][$subset];
+					$tmpname= $f['tmp_name'][$subset];
+					$desc = $_REQUEST['filedesc-'.$idx];
+					make_metadata( $doi, $tmpname, $name );
+					$ret = store_file( $doi, $tmpname, $name, $size, $desc ); 
+					if ($ret !== 0 ) {
+						return array( "error" => $ret );
+					}
+				}
+				else if ( $f['error'][$subset]===1 ){
+						return array( "error" => "Upload of file failed -- max file size is 128MB" );
+				}
+       }
+			}
+			else {
+				if( $f['error']===0 ) {
+					$size = $f['size'];
+					$name = $f['name'];
+					$tmpname= $f['tmp_name'];
+					$desc = $_REQUEST['filedesc-'.$idx];
+					make_metadata( $doi, $tmpname, $name );
+					$ret = store_file( $doi, $tmpname, $name, $size, $desc ); 
+					if ($ret !== 0 ) {
+						return array( "error" => $ret );
+					}
+				}
+				else if ( $f['error']===1 ){
+						return array( "error" => "Upload of file failed -- max file size is 128MB" );
+				}
+
+			}
+		}
 	}
 	header( "Location: /resolve?doi=" . $doi . "&access=" . get_embargo_pass($doi), true, 302 );
 }
 
 function make_metadata( $doi, $tmpname, $name ) {
 	$format=strtolower(substr($name, -3 ));
-	print("$format\n");
+#	print("$format\n");
 	if( preg_match( '/^[a-zA-Z][a-zA-Z][a-zA-Z]$/', $format ) ) {
 		$cmd="/usr/local/bin/babel -i $format $tmpname -o inchi - 2>/dev/null | /bin/grep InChI | /usr/bin/head -1";
-		$inchi = system($cmd, $ret );
-		$cmd="/usr/local/bin/babel -i $format $tmpname -o inchikey - 2>/dev/null |  /usr/bin/head -1";
-		$inchikey = system($cmd , $ret);
+		$inchi = exec($cmd, $ret );
+		$cmd="/usr/local/bin/babel -i $format $tmpname -o inchikey - 2>/dev/null | /bin/grep -v Babel |  /usr/bin/head -1";
+		$inchikey = exec($cmd , $ret);
 
 		if( strlen($inchi) ) {
 			add_metadata($doi, "inchi", $inchi );
@@ -978,5 +1056,11 @@ function is_collaborator( $user_id, $doi ) {
  if( !$R ) { return false;}
  return array_key_exists( 'doi', $R );
 
+}
+
+function make_access_token( $user_id ) {
+	$token = exec( '/usr/bin/xxd -l 80 -p -c 160 /dev/urandom' );
+	db_query( "UPDATE account SET access_token = ? WHERE user_id = ?", array( $token, $user_id ) );
+	return $token;
 }
 ?>

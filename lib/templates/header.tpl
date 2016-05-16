@@ -71,7 +71,7 @@ overflow: hidden;">
 <!-- for example
 <a href="http://www.imperial.ac.uk/ict/services/hpc/highperformancecomputing"  style="color: #FFFFFF;text-decoration: none;">Imperial College Computing Portal</a>
 -->
-<a href=""  style="color: #FFFFFF;text-decoration: none;">High Performance Computing Service Data Repository</a>
+<a href=""  style="color: #FFFFFF;text-decoration: none;">Imperial College High Performance Computing Service Data Repository</a>
 </td>
 
 </tr></table>

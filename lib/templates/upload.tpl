@@ -46,7 +46,7 @@
             var table = document.getElementById(tableID);
             var rowCount = table.rows.length;
  
-            for(var i=0; i<rowCount; i++) {
+            for(var i=3; i<rowCount; i++) {
                 var row = table.rows[i];
                 var chkbox = row.cells[0].childNodes[0];
                 if(null != chkbox && true == chkbox.checked) {
@@ -58,9 +58,9 @@
  
             }
 
-            for(var i=1; i<rowCount; i++) {
+            for(var i=3; i<rowCount; i++) {
                 var row = table.rows[i];
-                row.cells[1].innerHTML= "File " + i;
+                row.cells[1].innerHTML= "File " + (i-2);
             }
 
             }catch(e) {

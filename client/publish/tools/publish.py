@@ -12,9 +12,11 @@ def error(errstr):
 	sys.exit(1)
 
 
-def	publish( username, password, title, description, ff, dd ):
+def	publish( username, password, title, description, ff, dd, collection ):
+	if not collection:
+		collection=-1
 	url="https://" + username + ":" + password + "@data.hpc.imperial.ac.uk/publish/";
-	args = [ "/usr/bin/curl", url, "--post302", "-k", "-L", "-s", "-F", "title=" + title , "-F",  "description=" + description ] ;
+	args = [ "/usr/bin/curl", url, "--post302", "-k", "-L", "-s", "-F", "title=" + title , "-F",  "description=" + description, "-F", "memberof=" + str(collection) ] ;
 	for i in range(len(ff)):
 		args.append( "-F" )
 		args.append( "file-" + str(i) + "=@" + ff[i] )
@@ -61,7 +63,7 @@ if __name__ == "__main__":
 	p.add_argument( "--password", default=None, dest="password", nargs=1, action="store" , help="Imperial College password" )
 	p.add_argument( "--title", required=True, dest="title", nargs=1, action="store", help="Deposition title" )
 	p.add_argument( "--description", required=True, dest="desc", nargs=1, action="store", help="Deposition description. String or @<filename>" )
-	p.add_argument( "--file", dest="files", default=None, action="append", nargs=2, help="List of files to deposit [<filename> description]" )
+	p.add_argument( "--file", dest="files", default=None, action="append", nargs=2, help="List of files to deposit [<filename> <description>]" )
 	p.add_argument( "--collection", default=None, dest="collection", nargs=1, action="store", help="Collection to include deposition in" )
 	p.add_argument( "--make-collection", default=False,  dest="makecollection", action="store_const", const=True,  help="Make a new collection. Requires --title and --description" )
 
@@ -127,12 +129,15 @@ if __name__ == "__main__":
 		dd.append( filedesc )
 
 	if collection:
-		doi=find_collection( username, password, collection )
-		if not doi:
+		collection=find_collection( username, password, collection )
+		if not collection:
 			error( "Collection not found." )
+#		else:
+#			print("Publishing to [" +doi +"]" )
+      
 
 
-	publish( username, password, title, desc, ff, dd )
+	publish( username, password, title, desc, ff, dd, collection )
 
 	sys.exit(0)
 

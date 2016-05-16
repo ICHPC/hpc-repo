@@ -28,7 +28,8 @@ if ( $method === "POST" ) {
 	}
 	else {
 		if(strstr( $accept, "text/html" ) ) {
-			$smarty->assign('doi', $ret['doi'] );
+#			$smarty->assign('doi', $ret['doi'] );
+			$smarty->assign('index', $ret['index'] );
 			$smarty->display('success.tpl');
 			die;
 		}

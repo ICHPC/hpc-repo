@@ -30,6 +30,8 @@ if ( $method === "POST" ) {
 	else {
 		if(strstr( $accept, "text/html" ) ) {
 			$smarty->assign('doi', $ret['doi'] );
+			$smarty->assign('index', $ret['index'] );
+			$smarty->assign('embargo_pass', $ret['embargo_pass'] );
 			$smarty->display('success.tpl');
 			die;
 		}
