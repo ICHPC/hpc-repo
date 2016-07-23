@@ -41,6 +41,14 @@ CREATE TABLE associated (
    FOREIGN KEY(doi) REFERENCES doi(doi) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+CREATE TABLE external_collaborator (
+ doi BIGINT NOT NULL,
+ orcid VARCHAR(19) NOT NULL,
+ name VARCHAR(80) NOT NULL,
+ PRIMARY KEY(doi,orcid),
+ FOREIGN KEY(doi) REFERENCES doi(doi) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
 CREATE TABLE metadata (
  doi   BIGINT NOT NULL,
  key   VARCHAR(40) NOT NULL,
@@ -66,3 +74,15 @@ CREATE TABLE membership (
  FOREIGN KEY(parent) REFERENCES doi(doi) ON UPDATE CASCADE ON DELETE CASCADE,
  FOREIGN KEY(child)  REFERENCES doi(doi) ON UPDATE CASCADE ON DELETE CASCADE
 );
+
+CREATE TABLE mime (
+ regex VARCHAR(100) NOT NULL,
+ mime  VARCHAR(100) NOT NULL,
+ priority INTEGER DEFAULT 0
+);
+
+INSERT INTO mime ( regex, mime, priority ) VALUES  ( '\.txt$', 'text/plain', 0);
+INSERT INTO mime ( regex, mime, priority ) VALUES  ( '\.xml$', 'application/xml', 0 );
+INSERT INTO mime ( regex, mime, priority ) VALUES  ( '\\.log$', 'chemical/x-gaussian-log', 0 );
+INSERT INTO mime ( regex, mime, priority ) VALUES  ( '\\.[f]*chk$', 'chemical/x-gaussian-checkpoint', 0 );
+INSERT INTO mime ( regex, mime, priority ) VALUES  ( '\\.wfn$', 'chemical/x-gaussian-wavefunction', 0 );

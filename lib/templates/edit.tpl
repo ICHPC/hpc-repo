@@ -1,6 +1,70 @@
 {literal}
     <SCRIPT language="javascript">
 
+        function addRowORCIDList(tableID) {
+ 
+            var table = document.getElementById(tableID);
+ 
+            var rowCount = table.rows.length;
+            var row = table.insertRow(rowCount);
+ 
+            var cell1 = row.insertCell(0);
+            var element1 = document.createElement("input");
+            element1.type = "checkbox";
+            element1.name="chkbox";
+            cell1.appendChild(element1);
+ 
+            var cell2 = row.insertCell(1);
+            cell2.innerHTML = "ORCID "+ (rowCount);
+ 
+            var cell3 = row.insertCell(2);
+            var ntab = document.createElement("table");
+            cell3.appendChild(ntab);
+            row = ntab.insertRow(0);
+            cell1 = row.insertCell(0);
+
+            var element2 = document.createElement("input");
+            element2.multiple="true";
+            element2.type = "textfield";
+            element2.name = "external-" + (rowCount-1) ;
+            cell1.appendChild(element2);
+
+
+        }
+ 
+        function deleteRowORCIDList(tableID) {
+            try {
+            var table = document.getElementById(tableID);
+            var rowCount = table.rows.length;
+ 
+            for(var i=0; i<rowCount; i++) {
+                var row = table.rows[i];
+                var chkbox = row.cells[0].childNodes[0];
+                if(null != chkbox && true == chkbox.checked) {
+                    table.deleteRow(i);
+                    rowCount--;
+                    i--;
+                }
+                var chkbox = row.cells[0].childNodes[1];
+                if(null != chkbox && true == chkbox.checked) {
+                    table.deleteRow(i);
+                    rowCount--;
+                    i--;
+                }
+
+            }
+
+            for(var i=1; i<rowCount; i++) {
+                var row = table.rows[i];
+                row.cells[1].innerHTML= "ORCID " + i;
+            }
+            }catch(e) {
+                alert(e);
+            }
+        }
+
+
+
         function addRowFileList(tableID) {
  
             var table = document.getElementById(tableID);
@@ -154,7 +218,12 @@
 
 <form  enctype="multipart/form-data"  METHOD="POST">
 
-      <h2>Add files</h2>
+<h3>Title</h3>
+<textarea name="title" cols="80" rows="1">{$title}</textarea></td>
+<h3>Description</h3>
+<textarea name="description" cols="80" rows="10">{$description}</textarea></td>
+
+      <h3>Add files</h3>
 <table class="MYTABLE" id="filelist">
 <tr><th></th><th>Description</th><th>File</th></tr>
 
@@ -181,7 +250,7 @@
 </br>
 
 
-      <h2>Modify Associated DOIs</h2>
+      <h3>Modify Associated DOIs</h3>
 <table class="MYTABLE" id="doilist">
 <tr><th></th><th>DOI</th><th>Description</th></tr>
 
@@ -228,6 +297,7 @@
 </br>
 </br>
 {if isset($memberof)}
+<h3>Project Membership</h3>
 <p>Member of
 <select name="memberof">
 {section name=s loop=$memberof}
@@ -333,9 +403,71 @@ function move(listBoxTo,optionValue,optionDisplayText){
 </div>
 </br>
 
-<input type="Submit" value="Submit"  onClick="javaScript:forceselection();">
+<h3>External Collaborators</h3>
+
+<table class="MYTABLE" id="externallist">
+<tr><th></th><th>ORCID</th><th>Name</th></tr>
+
+{if $external} 
+{section name=s loop=$external} 
+<tr>
+<td>
+<input type="checkbox" name="chkbox" value="0" >
+</td>
+<td>ORCID {$external[s].index + 1 }</td>
+<td>
+<table>
+	<tr>
+		<td><input  name="external-{$external[s].index}" value="{$external[s].orcid}"></td>
+		<td><a href="https://orcid.org/{$external[s].orcid}">{$external[s].name}</a></td>
+	</tr>
+</table>
+</td>
+</tr>
+{/section}
+{else}
+
+<tr><td>
+<input type="checkbox" name="chkbox" value="0" >
+</td><td>ORCID 1</td>
+<td>
+<table>
+	<tr>
+		<td><input  name="external-0" ></td>
+		<td></td>
+	</tr>
+</table>
+</td>
+</tr>
+
+
+{/if}
+</table>
+
+
+
+
+
+
+<br>
+<input type="button" value="Add ORCID" onclick="addRowORCIDList('externallist')"/>
+<input type="button" value="Delete selected" onclick="deleteRowORCIDList('externallist')"/>
+</br>
+</br>
+
+<input type="Submit" value="Save"  onClick="javaScript:forceselection();">
 
 </form>
+
+
+<form action="https://orcid.org/orcid-search/quick-search" method="get" target="_blank">
+<input type="textfield" name="searchQuery">
+<input  type="submit" value="Search ORCID">
+</form>
+
+
+
+
 
 
 

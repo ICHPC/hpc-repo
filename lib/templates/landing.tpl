@@ -5,6 +5,9 @@
 <h1>{$title}</h1>
 
 <p class="doi">DOI: <a href="https://doi.org/{$doi}">{$doi}</a> 
+{if {$no_orcid_warning}==1 }
+<p class="warning">This DOI will not become public until you have registered your ORCID identifier <a href='/publish/register.php'>here</a></p>
+{/if}
 <a href="https://search.datacite.org/ui?&q={$doi}">Metadata</a>
 </p>
 <p class="author">Author: <a href="https://orcid.org/{$orcid}">{$author}</a></p>

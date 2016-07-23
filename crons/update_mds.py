@@ -10,6 +10,15 @@ import sys
 import os
 
 
+def has_orcid( con, doi ):
+	cur = con.cursor( cursor_factory = RealDictCursor )
+	cur.execute( "SELECT orcid FROM account A JOIN doi B on A.user_id = B.creator WHERE doi = %s",  [doi]  )
+	ret = cur.fetchall()
+	cur.close()
+	return ret[0]['orcid']
+
+
+
 def update_files( con, doi, full_doi, doiauth, files ):
 			headers={
 				'Content-Type' : "application/xml;charset=UTF-8",
@@ -18,7 +27,7 @@ def update_files( con, doi, full_doi, doiauth, files ):
 			x=0
 			for f in files:
 				sanitisefn = re.sub( "[ ><,+!'()&%$/;:]", "_", f['filename'] )
-				key = f['mimetype'] + "+" + sanitisefn
+				key = f['mimetype'] 
 				key = key.lower()
 				value = "https://data.hpc.imperial.ac.uk/resolve/?doi=" + str(doi) + "&file=" + str(x)
 				md = key + "=" + value
@@ -86,6 +95,15 @@ def get_collaborators( con, doi ):
 	cur.close()
 	return ret
 
+def get_external_collaborators( con, doi ):
+	cur = con.cursor( cursor_factory = RealDictCursor )
+	cur.execute( "SELECT * FROM external_collaborator WHERE doi = %s", [doi]  )
+	ret = cur.fetchall()
+	cur.close()
+	return ret
+
+
+
 def get_files( con, doi ):
 	cur = con.cursor( cursor_factory = RealDictCursor )
 	cur.execute( "SELECT * FROM file WHERE doi = %s ORDER BY seq ASC", [doi]  )
@@ -104,7 +122,7 @@ def get_metadata( con, doi ):
 #<ns0:resource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ns0="http://datacite.org/schema/kernel-2.2" xsi:schemaLocation="http://datacite.org/schema/kernel-2.2 http://schema.datacite.org/meta/kernel-2.2/metadata.xsd">
 
 
-def create_metadata( doi_prefix,record, collabs, files, metadata , heir, assoc ):
+def create_metadata( doi_prefix,record, collabs, externalcollabs, files, metadata , heir, assoc ):
 	doi = doi_prefix + str(record['doi'])
 	ns = "http://datacite.org/schema/kernel-3"
 	xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -142,6 +160,19 @@ def create_metadata( doi_prefix,record, collabs, files, metadata , heir, assoc )
 		ni.text = record['orcid']
 		SubElement( contributor, "affiliation" ).text = "Imperial College London"
 
+	for rec in externalcollabs:
+		contributor = SubElement( contributors, "contributor" )
+		contributor.set( "contributorType", "Researcher" )
+		SubElement( contributor, "contributorName" ).text = rec['name']
+#	SubElement( contributor, "affiliation" ).text = "Imperial College London"
+		ni = SubElement( contributor , "nameIdentifier" )
+		ni.set( "schemeURI", "http://orcid.org" )
+		ni.set( "nameIdentifierScheme", "ORCID" )
+		ni.text = record['orcid']
+#		SubElement( contributor, "affiliation" ).text = "Imperial College London"
+
+
+
 	descriptions= SubElement( resource, "descriptions" )
 	description = SubElement( descriptions, "description" )
 	description.text = record['description']
@@ -169,7 +200,7 @@ def create_metadata( doi_prefix,record, collabs, files, metadata , heir, assoc )
 		related.set( "relatedIdentifierType", "URL" )
 		related.set( "relationType", "HasPart" )
 		related.set( "relatedMetadataScheme", "Filename" )
-		related.set( "schemeURI", "mime+filename://" + f['mimetype'] + "+" + f['filename'] )
+		related.set( "schemeURI", "filename://" + f['filename'] )
 		related.text="https://data.hpc.imperial.ac.uk/resolve/?doi=" + str(record['doi']) + "&file=" + str(f['seq'])
 
 	subjects = SubElement( resource, "subjects" )
@@ -245,6 +276,7 @@ if __name__ == "__main__":
 ##		try:
 			doi=int(a['doi'])
 			collabs = get_collaborators( con, doi ) 
+			externalcollabs = get_external_collaborators( con, doi );
 			files   = get_files( con, doi )
 			metadata= get_metadata( con, doi )
 			heirarchy=get_heirarchy( con, doi )
@@ -257,22 +289,30 @@ if __name__ == "__main__":
 			doiauth = doiauth.decode("ascii")
 			full_doi = doi_prefix + str(a['doi'])
 
-			print("=== Updating metadata for DOI " + full_doi )
+			if( has_orcid( con, doi ) ):      
+				print("=== Updating metadata for DOI " + full_doi )
 
-			md = create_metadata( doi_prefix , a, collabs, files, metadata, heirarchy, assoc )
+				md = create_metadata( doi_prefix , a, collabs, externalcollabs, files, metadata, heirarchy, assoc )
 
-			print(md)
+#			print(md)
+				ret2 = False
+				ret1 = False
 
-			ret1 = update_files   ( con, doi, full_doi, doiauth, files )
-			ret2 = update_metadata( con, doi, full_doi, doiauth, md )
+				ret2 = update_metadata( con, doi, full_doi, doiauth, md )
+				if ret2:
+					ret1 = update_files   ( con, doi, full_doi, doiauth, files )
+				else:
+					print(" - UPDATE FAILED: " )
+					print( md )
 
-			if( ret1 and ret2 ):
-				print(" - MARKING COMPLETE" )
-				cur = con.cursor( cursor_factory = RealDictCursor )
-				cur.execute("UPDATE doi SET updated = FALSE WHERE doi=%s", [ doi ] )
-				cur.close()
-				con.commit()
-
+				if( ret1 and ret2 ):
+					print(" - MARKING COMPLETE" )
+					cur = con.cursor( cursor_factory = RealDictCursor )
+					cur.execute("UPDATE doi SET updated = FALSE WHERE doi=%s", [ doi ] )
+					cur.close()
+					con.commit()
+			else:
+				print("=== Skipping DOI " + full_doi + " : no ORCID" );
 
 #		except:
 #			raise

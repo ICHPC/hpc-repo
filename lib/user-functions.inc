@@ -56,8 +56,28 @@ function insert_in_doi_table( $user_id, $title, $desc, $is_collection, $url ) {
 	return $doi_seq;
 }
 
+function reset_mimes() {
+ $R = db_query_all( "SELECT * FROM file", array() );
+ foreach($R as $r) {
+   $mime = guess_mime( $r['filename'] );
+	 db_query_all( "UPDATE file SET mimetype=? WHERE file_seq=?", array( $mime, $r['file_seq'] ) );
+	 print("<p>" .  $r['filename'] . " --> " . $mime . "</p>" );
+ }
+}
+
 function guess_mime( $filename ) {
-	return "application/octet-stream";
+	$R = db_query_all( "SELECT * FROM mime", array() );
+	$mime ="application/octet-stream";
+	$val=-1;
+
+	foreach ($R as $r) {
+		if( preg_match( "/" . $r['regex'] ."/", $filename ) && ($r['priority'] > $val)  && strlen($r['mime'])<64 ) {
+			$mime = $r['mime'];
+		}
+		
+	}
+ 
+	return $mime;
 }
 
 function get_urlmapping_by_uid( $user_id ) {
@@ -278,6 +298,7 @@ function register_doi( $doi_idx, $uid, $title ) {
 	$doi = $doi .  $doi_idx;
 	$doi_full = $doi;
 
+
 	# Step 1  is to make the simple metadata xml
 	$xml = new SimpleXMLElement('<resource xmlns="http://datacite.org/schema/kernel-3"></resource>' );
 	$xml->addAttribute( 'xsi:schemaLocation', "http://datacite.org/schema/kernel-3 http://schema.datacite.org/meta/kernel-3/metadata.xsd",  "http://www.w3.org/2001/XMLSchema-instance" );
@@ -361,6 +382,8 @@ function register_doi( $doi_idx, $uid, $title ) {
 		return array( "error" => "Unable to register DOI metadata ( $code )");
 	}
 
+
+
 	# Step 3 register DOI->Ul mapping
 	$maptext = "doi:$doi\n";
 	$maptext = $maptext . "url=" . $repo_url . "/resolve/?doi=" .$doi_idx;
@@ -381,7 +404,7 @@ function register_doi( $doi_idx, $uid, $title ) {
 
 
 	if( $code !== 201 ) { 
-		return array( "error" => "Unable to register DOI mapping");
+		return array( "error" => "Unable to register DOI mapping (2)");
 	}
 
 	return array( "doi" => $doi_full );	
@@ -412,7 +435,9 @@ function get_orcid_by_id( $uid ) {
 
 function make_landing_page( $doi ) {
 	global $REPO_options;
+	global $smarty;
 	$doi=(int)$doi;
+
 	$R = db_query( "SELECT * FROM DOI WHERE doi=?", array($doi) );
 	if(!array_key_exists( 'title', $R ) ) {
 		header("HTTP/1.0 404 Not Found");
@@ -425,6 +450,10 @@ function make_landing_page( $doi ) {
 		die();
 	}
 
+ $S = db_query( " select a.orcid from account A join doi B  on A.user_id = B.creator where B.doi=?", array($doi) ) ;
+ if( $S['orcid'] == "" ) $smarty->assign( "no_orcid_warning", 1 );
+ 
+   
 	if ( $R['collection'] === true  ) {
 		make_collection_landing_page( $doi );
 	}
@@ -667,6 +696,50 @@ function get_publication_list( $uid ) {
 	return $rr;
 }
 
+function get_external_collaborators( $doi ) {
+	$R = db_query_all("SELECT * FROM external_collaborator WHERE doi=?", array($doi) );
+  $rr=array();
+  $i=0;
+  foreach( $R as $r ) {
+		$rr[] = array( "index"=> $i,"orcid" => $r['orcid'], "name" => $r['name'] );
+    $i++;
+	}
+	return $rr;
+}
+
+function map_orcid_to_name( $orcid ) {
+	$orcid = preg_replace( "/^https:\/\/orcid.org\//", "", $orcid );
+	$orcid = preg_replace( "/^http:\/\/orcid.org\//",  "",$orcid );
+	$orcid = preg_replace( "/^https:\/\/www.orcid.org\//", "", $orcid );
+	$orcid = preg_replace( "/^http:\/\/www.orcid.org\//", "", $orcid );
+  if( !preg_match( "/^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/", $orcid ) ) {
+		return NULL;
+	}
+	exec("curl -s -H 'Accept: application/orcid+json' https://orcid.org/$orcid", $ret, $retval );
+
+	$ret = json_decode(implode($ret), true);
+
+	return $ret["orcid-profile"]["orcid-bio"]["personal-details"]["given-names"]["value"] . " " . $ret["orcid-profile"]["orcid-bio"]["personal-details"]["family-name"]["value"];
+
+}
+
+function set_external_collaborators( $doi ) {
+  db_query("DELETE FROM external_collaborator WHERE doi=?", array($doi) );
+
+	foreach( $_REQUEST as $key => $value ) {
+		if ( substr($key, 0, 9) === "external-" ) {
+			$idx=substr($key, 9, strlen($key) );
+			$orcid  = $_REQUEST['external-' . $idx];
+			$orcid  = trim($orcid);
+      $name = map_orcid_to_name($orcid );
+print("[$orcid][$name]\n");
+			if( $name !== NULL ) {
+				db_query("INSERT INTO external_collaborator ( doi, orcid, name ) VALUES ( ?, ?, ? )", array( $doi, $orcid, $name ) );
+			}
+		}
+	}
+}
+
 function get_collaborations_list( $uid ) {
 	global $REPO_options;
 	$R = db_query_all( "SELECT * FROM collaboration WHERE user_id = ?", array($uid) );
@@ -783,6 +856,10 @@ function edit_entry_get( $id, $doi ){
 		die;
 	}
 
+	$R=db_query( "SELECT * FROM doi WHERE doi=?", array($doi) );
+	$smarty->assign( "title", $R['title'] );
+	$smarty->assign( "description", $R['description'] );
+
 	$R=db_query_all( "SELECT * FROM associated WHERE doi=? ORDER BY associated", array($doi) );
 
 	$RR=array();
@@ -799,6 +876,7 @@ function edit_entry_get( $id, $doi ){
 
 	$smarty->assign( "associated", $RR );
 
+  $smarty->assign( "external", get_external_collaborators($doi ) );
   $owner=-1;
   $r=db_query("SELECT * FROM membership WHERE child=?", array($doi) );
   if(array_key_exists('parent', $r ) ) { $owner=$r['parent']; }
@@ -863,6 +941,8 @@ function edit_entry_put( $id, $doi ){
 	}
 
 	mark_doi_updated($doi);
+
+	  db_query( "UPDATE doi SET title=?, description=? WHERE doi=?", array($_REQUEST['title'], $_REQUEST['description'], $doi ) );
 
   # Invalidate the parent too
   $r =db_query( "SELECT * FROM membership WHERE child=?", array($doi) );
@@ -956,6 +1036,11 @@ function edit_entry_put( $id, $doi ){
 			}
 		}
 	}
+
+ 
+  set_external_collaborators($doi);
+#print_r($_REQUEST);
+#die; 
 	header( "Location: /resolve?doi=" . $doi . "&access=" . get_embargo_pass($doi), true, 302 );
 }
 
