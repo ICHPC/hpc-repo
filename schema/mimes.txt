@@ -1,3 +1,4 @@
+INSERT INTO mime ( regex, mime, priority ) VALUES ( '\\.jvxl$', 'chemical/x-jvxl', 0 )
 INSERT INTO mime ( regex, mime, priority ) VALUES ( '\\.ez$', 'application/andrew-inset', 0);
 INSERT INTO mime ( regex, mime, priority ) VALUES ( '\\.anx$', 'application/annodex', 0);
 INSERT INTO mime ( regex, mime, priority ) VALUES ( '\\.atom$', 'application/atom+xml', 0);

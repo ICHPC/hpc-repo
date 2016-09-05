@@ -8,8 +8,13 @@
 {if {$no_orcid_warning}==1 }
 <p class="warning">This DOI will not become public until you have registered your ORCID identifier <a href='/publish/register.php'>here</a></p>
 {/if}
-<a href="https://search.datacite.org/ui?&q={$doi}">Metadata</a>
+<a href="https://data.datacite.org/{$doi}">Metadata</a>
 </p>
+<p class="date">Created: {$creation_date}</p>
+{if {$modified_date} }
+<p class="date">Last modified: {$modified_date}</p>
+{/if}
+
 <p class="author">Author: <a href="https://orcid.org/{$orcid}">{$author}</a></p>
 
 {if isset($collaborators)}
@@ -28,6 +33,10 @@ Co-author: <a href="https://orcid.org/{$collaborators[s].orcid}">{$collaborators
 <p><a href="/publish/release/?doi={$index}">Release embargo</a></p>
 {/if}
 
+{if $datument}
+<h3>Live view</h3>
+<iframe name="liveview" src="{$datument}" width="100%" height="600"></iframe>
+{/if}
 {if $files}
 <h3>Files</h3>
 <table class="sortable" border="1" width="100%">

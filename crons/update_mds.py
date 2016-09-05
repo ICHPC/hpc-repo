@@ -8,6 +8,7 @@ import requests
 import base64
 import sys
 import os
+import datetime
 
 
 def has_orcid( con, doi ):
@@ -24,14 +25,13 @@ def update_files( con, doi, full_doi, doiauth, files ):
 				'Content-Type' : "application/xml;charset=UTF-8",
 				"Authorization" : "Basic " +  doiauth 
 			}
-			x=0
+			x=1
 			for f in files:
 				sanitisefn = re.sub( "[ ><,+!'()&%$/;:]", "_", f['filename'] )
 				key = f['mimetype'] 
 				key = key.lower()
 				value = "https://data.hpc.imperial.ac.uk/resolve/?doi=" + str(doi) + "&file=" + str(x)
 				md = key + "=" + value
-				x=x+1
 				r = requests.post( "https://mds.datacite.org/media/" + full_doi, headers= headers, data = md )
 				
 				print(" - POST MEDIA"  )
@@ -41,7 +41,46 @@ def update_files( con, doi, full_doi, doiauth, files ):
 					print( "RESPONSE : " + r.content.decode("ascii"))
 					return False
 
+	
+
+				x=x+1
 			return True
+
+def update_virtual_files( con, doi, full_doi, doiauth, files ):
+			headers={
+				'Content-Type' : "application/xml;charset=UTF-8",
+				"Authorization" : "Basic " +  doiauth 
+			}
+			x=1
+			for f in files:
+				v = False
+
+				key = f['mimetype'] 
+				key = key.lower()
+				value = "https://data.hpc.imperial.ac.uk/resolve/?doi=" + str(doi) + "&file=" + str(-x)
+
+        # Virtual files
+				if key == "chemical/x-mnova":
+					key = "chemical/x-mnpub"
+					v = True
+				elif key == "application/zip":
+					key = "chemical/x-mnpub"
+					v = True
+
+				if v:
+					md = key + "=" + value
+					r = requests.post( "https://mds.datacite.org/media/" + full_doi, headers= headers, data = md )
+					print(" - POST MEDIA"  )
+					if(  r.status_code != requests.codes.ok ):
+						print( "ERROR: Status code:" + str( r.status_code) )
+						print( "REQUEST  : " + md )
+						print( "RESPONSE : " + r.content.decode("ascii"))
+						return False
+
+				x=x+1
+			return True
+
+
 
 def update_metadata( con, doi, full_doi, doiauth, md ):
 			headers={
@@ -106,7 +145,7 @@ def get_external_collaborators( con, doi ):
 
 def get_files( con, doi ):
 	cur = con.cursor( cursor_factory = RealDictCursor )
-	cur.execute( "SELECT * FROM file WHERE doi = %s ORDER BY seq ASC", [doi]  )
+	cur.execute( "SELECT * FROM file WHERE doi = %s AND deprecated=FALSE ORDER BY seq ASC", [doi]  )
 	ret = cur.fetchall()
 	cur.close()
 	return ret
@@ -147,8 +186,24 @@ def create_metadata( doi_prefix,record, collabs, externalcollabs, files, metadat
 	contributors = SubElement( resource, "contributors" )
 	contributor = SubElement( contributors, "contributor" )
 	contributor.set( "contributorType", "HostingInstitution" )
+	SubElement( contributor, "contributorName" ).text = "Imperial College London"
+
+	contributor = SubElement( contributors, "contributor" )
+	contributor.set( "contributorType", "DataManager" )
 	SubElement( contributor, "contributorName" ).text = "Imperial College High Performance Computing Service"
-	
+
+	# Add the creator as a contrubtor so it shos up in the MDS landing page
+	contributor = SubElement( contributors, "contributor" )
+	contributor.set( "contributorType", "Researcher" )
+	SubElement( contributor, "contributorName" ).text = record['name']
+	ni = SubElement( contributor, "nameIdentifier" )
+	ni.set( "schemeURI", "http://orcid.org" )
+	ni.set( "nameIdentifierScheme", "ORCID" )
+	ni.text = record['orcid']
+	SubElement( contributor, "affiliation" ).text = "Imperial College London"
+
+
+		
 	for rec in collabs:
 		contributor = SubElement( contributors, "contributor" )
 		contributor.set( "contributorType", "Researcher" )
@@ -157,7 +212,7 @@ def create_metadata( doi_prefix,record, collabs, externalcollabs, files, metadat
 		ni = SubElement( contributor , "nameIdentifier" )
 		ni.set( "schemeURI", "http://orcid.org" )
 		ni.set( "nameIdentifierScheme", "ORCID" )
-		ni.text = record['orcid']
+		ni.text = rec['orcid']
 		SubElement( contributor, "affiliation" ).text = "Imperial College London"
 
 	for rec in externalcollabs:
@@ -168,7 +223,7 @@ def create_metadata( doi_prefix,record, collabs, externalcollabs, files, metadat
 		ni = SubElement( contributor , "nameIdentifier" )
 		ni.set( "schemeURI", "http://orcid.org" )
 		ni.set( "nameIdentifierScheme", "ORCID" )
-		ni.text = record['orcid']
+		ni.text = rec['orcid']
 #		SubElement( contributor, "affiliation" ).text = "Imperial College London"
 
 
@@ -187,6 +242,10 @@ def create_metadata( doi_prefix,record, collabs, externalcollabs, files, metadat
 	dd.text = str( record['creation_date'] )
 	dd.set( "dateType", "Created" )
 
+	dd = SubElement( dds, "date")
+	dd.text = str( datetime.datetime.now() )
+	dd.set( "dateType", "Updated" )
+
 	relateds = SubElement( resource, "relatedIdentifiers" )
 	related  = SubElement( relateds, "relatedIdentifier" )
 	related.set( "relatedIdentifierType", "URL" )
@@ -201,13 +260,20 @@ def create_metadata( doi_prefix,record, collabs, externalcollabs, files, metadat
 		related.set( "relationType", "HasPart" )
 		related.set( "relatedMetadataScheme", "Filename" )
 		related.set( "schemeURI", "filename://" + f['filename'] )
-		related.text="https://data.hpc.imperial.ac.uk/resolve/?doi=" + str(record['doi']) + "&file=" + str(f['seq'])
+		related.text="https://data.hpc.imperial.ac.uk/resolve/?doi=" + str(record['doi']) + "&file=" + str(f['seq']+1)
+
+		
 
 	subjects = SubElement( resource, "subjects" )
 	for a in metadata:
 		subject = SubElement( subjects, "subject" )
 		subject.text = a['value']
 		subject.set( "subjectScheme", a['key'] )
+		if a['key'] == "inchi":
+			subject = SubElement( subjects, "subject" )
+			subject.set( "subjectScheme", "The InChI Trust")
+			subject.set( "subjectURI", "http://www.inchi-trust.org/technical-faq")
+			
 
 	for a in assoc:
 		if a['associated']:
@@ -254,11 +320,12 @@ def create_metadata( doi_prefix,record, collabs, externalcollabs, files, metadat
 
 
 if __name__ == "__main__":
+	import sys
 	
 	cp = configparser.ConfigParser( interpolation=None )
 	cp.read('/var/www/data.hpc.imperial.ac.uk/repo/configuration.ini' )
 
-
+	do_all = ( "--all" in sys.argv )
 	doi_prefix = re.sub( '"', '', cp.get( "datacite", "dc_prefix")) 
 	doi_user   = re.sub( '"', '', cp.get( "datacite", "dc_user")) 
 	doi_pass   = re.sub( '"', '', cp.get( "datacite", "dc_password"))
@@ -269,7 +336,11 @@ if __name__ == "__main__":
 	
 	con = connect("dbname='%s' user='%s' host='%s' password='%s'" % ( db_name, db_user, db_host, db_password) )
 	cur = con.cursor( cursor_factory = RealDictCursor )
-	cur.execute("SELECT * FROM doi A LEFT JOIN account B ON A.creator = B.user_id WHERE A.embargoed = FALSE AND A.updated = TRUE ORDER BY doi ASC")
+
+	if do_all:
+		cur.execute("SELECT * FROM doi A LEFT JOIN account B ON A.creator = B.user_id WHERE A.embargoed = FALSE ORDER BY doi ASC")
+	else:
+		cur.execute("SELECT * FROM doi A LEFT JOIN account B ON A.creator = B.user_id WHERE A.embargoed = FALSE AND A.updated = TRUE ORDER BY doi ASC")
 
 	row=cur.fetchall()
 	for a in row:
@@ -304,6 +375,13 @@ if __name__ == "__main__":
 				else:
 					print(" - UPDATE FAILED: " )
 					print( md )
+				if ret2:
+					ret1 = update_virtual_files   ( con, doi, full_doi, doiauth, files )
+				else:
+					print(" - UPDATE FAILED: " )
+					print( md )
+
+
 
 				if( ret1 and ret2 ):
 					print(" - MARKING COMPLETE" )

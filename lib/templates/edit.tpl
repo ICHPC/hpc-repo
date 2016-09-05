@@ -220,10 +220,29 @@
 
 <h3>Title</h3>
 <textarea name="title" cols="80" rows="1">{$title}</textarea></td>
+<p>
+<input type="Submit" value="Save"  onClick="javaScript:forceselection();">
+</p>
 <h3>Description</h3>
 <textarea name="description" cols="80" rows="10">{$description}</textarea></td>
+<p>
+<input type="Submit" value="Save"  onClick="javaScript:forceselection();">
+</p>
+<h3>Edit Files</h3>
+<table class="MYTABLE" id="curfilelist">
+<tr><th>File</th><th>Description</th></tr>
+{section name=s loop=$curfile}
+<tr>
+<td>{$curfile[s].filename}</td>
+<td><textarea name="curfiledesc-{$curfile[s].seq}" cols=47 rows=1>{$curfile[s].description}</textarea></td>
+</tr>
+{/section}
 
-      <h3>Add files</h3>
+</table>
+<p>
+<input type="Submit" value="Save"  onClick="javaScript:forceselection();">
+</p>
+<h3>Add files</h3>
 <table class="MYTABLE" id="filelist">
 <tr><th></th><th>Description</th><th>File</th></tr>
 
@@ -249,7 +268,9 @@
 </br>
 </br>
 
-
+<p>
+<input type="Submit" value="Save"  onClick="javaScript:forceselection();">
+</p>
       <h3>Modify Associated DOIs</h3>
 <table class="MYTABLE" id="doilist">
 <tr><th></th><th>DOI</th><th>Description</th></tr>
@@ -296,6 +317,7 @@
 <input type="button" value="Delete selected" onclick="deleteRow('doilist')"/>
 </br>
 </br>
+<input type="Submit" value="Save"  onClick="javaScript:forceselection();">
 {if isset($memberof)}
 <h3>Project Membership</h3>
 <p>Member of
@@ -304,8 +326,12 @@
 <option value="{$memberof[s].index}" {$memberof[s].selected}>{$memberof[s].description} -- {$memberof[s].doi}</option>
 {/section}
 </select>
+<p>
+<input type="Submit" value="Save"  onClick="javaScript:forceselection();">
+</p>
 {/if}
 </br>
+
 
 <h3>Collaborators</h3>
 
@@ -402,11 +428,12 @@ function move(listBoxTo,optionValue,optionDisplayText){
 </table>
 </div>
 </br>
+<input type="Submit" value="Save"  onClick="javaScript:forceselection();">
 
 <h3>External Collaborators</h3>
 
 <table class="MYTABLE" id="externallist">
-<tr><th></th><th>ORCID</th><th>Name</th></tr>
+				<tr><th></th><th></th><th>ORCID</th></tr>
 
 {if $external} 
 {section name=s loop=$external} 
@@ -455,15 +482,19 @@ function move(listBoxTo,optionValue,optionDisplayText){
 </br>
 </br>
 
+
 <input type="Submit" value="Save"  onClick="javaScript:forceselection();">
 
 </form>
 
 
+<h3>Search ORCID</h3>
 <form action="https://orcid.org/orcid-search/quick-search" method="get" target="_blank">
 <input type="textfield" name="searchQuery">
 <input  type="submit" value="Search ORCID">
 </form>
+
+
 
 
 

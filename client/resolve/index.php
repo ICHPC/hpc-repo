@@ -3,8 +3,11 @@
 require_once( '../../lib/repository.inc' );
 if ( array_key_exists( "doi", $_REQUEST ) ) {
   check_access( $_REQUEST['doi'], $_REQUEST['access'], true );
-	if( array_key_exists( "file", $_REQUEST ) ) {
-		return_file( $_REQUEST['doi'], $_REQUEST['file'] );
+  if( array_key_exists( "filename", $_REQUEST ) )  {
+		return_file( $_REQUEST['doi'], 0, $_REQUEST['filename'] );
+  }
+	else if( array_key_exists( "file", $_REQUEST ) ) {
+		return_file( $_REQUEST['doi'], $_REQUEST['file'], null );
 	}
 	else {
 		make_landing_page( $_REQUEST['doi'] );
