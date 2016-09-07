@@ -15,6 +15,7 @@ function db_query($query, array $values)
             ", at " . $e->getLine() . " of " . $e->getFile() . "\n" .
             "doing $query\nwith values:";
         $err .= print_r($values, true);
+        #error_log($err);
         #print("<!--<p>$err\n-->");
     }
     return NULL;

@@ -92,10 +92,13 @@ else {
         array( 'url' => '/publish/', 'name' => 'Deposit Data' ), 
         array( 'url' => '/publish/url', 'name' => 'Persistent URL ' ), 
         array( 'url' => '/publish/tools', 'name' => 'Tools' ), 
+        array( 'url' => '/publish/github', 'name' => 'Github Integration' ), 
         array( 'url' => 'https://wiki.ch.ic.ac.uk/wiki/index.php?title=Rdm:data ', 'name' => 'Help' ), 
       )); 
 
 
 
+
+require_once( 'lib/github-functions.inc' )
 
 ?>

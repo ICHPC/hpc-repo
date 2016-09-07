@@ -9,6 +9,29 @@ CREATE TABLE account (
 	orcid         VARCHAR(20) DEFAULT NULL
 );
 
+CREATE TABLE github (
+ user_id      BIGINT       NOT NULL PRIMARY KEY,
+ nonce        VARCHAR(256) DEFAULT NULL,
+ access_token VARCHAR(256) DEFAULT NULL,
+ github_username VARCHAR(32) DEFAULT NULL,
+ FOREIGN KEY(user_id) REFERENCES account(user_id) ON DELETE NO ACTION ON UPDATE CASCADE
+);
+
+
+CREATE TABLE github_repos(
+ user_id   BIGINT NOT NULL,
+ repo_id   BIGINT NOT NULL PRIMARY KEY,
+ repo_name VARCHAR(64) NOT NULL UNIQUE,
+ enabled   BOOLEAN     DEFAULT FALSE,
+ FOREIGN KEY(user_id) REFERENCES account(user_id) ON DELETE NO ACTION ON UPDATE CASCADE
+);
+
+CREATE TABLE github_dois(
+ repo_name VARCHAR(64)  NOT NULL,
+ doi     BIGINT NOT NULL,
+ FOREIGN KEY(doi) REFERENCES doi(doi) ON DELETE NO ACTION ON UPDATE CASCADE
+);
+
 CREATE TABLE doi (
   doi           BIGINT DEFAULT nextval('doi_seq') NOT NULL PRIMARY KEY,
   creator       BIGINT  NOT NULL,
